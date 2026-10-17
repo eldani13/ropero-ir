@@ -55,6 +55,11 @@ input {
   font: inherit;
 }
 
+input {
+  box-shadow: none;
+  appearance: none;
+}
+
 ::selection {
   background: var(--accent-soft);
 }

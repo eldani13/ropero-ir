@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { FiSearch, FiX } from 'react-icons/fi'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { IrSpectrumModal } from '../components/IrSpectrumModal'
 import { SearchLoading } from '../components/SearchLoading'
 import { SiteFooter } from '../components/SiteFooter'
+import { alertError, alertInfo, alertWarning } from '../lib/alerts'
 import { sdbsHitsToItems, searchSdbs, type ResultItem } from '../lib/api'
 
 type SortKey = 'sdbs_no' | 'formula' | 'peso_molecular' | 'ir' | 'nombre'
@@ -35,6 +37,7 @@ export function ResultsPage() {
     if (!q.trim()) {
       setLoading(false)
       setItems([])
+      setError(null)
       return
     }
 
@@ -53,10 +56,19 @@ export function ResultsPage() {
           from: res.from,
           to: res.to,
         })
-        setItems(sdbsHitsToItems(res.items.filter((hit) => hit.ir)))
+        const withIr = sdbsHitsToItems(res.items.filter((hit) => hit.ir))
+        setItems(withIr)
+        if (withIr.length === 0) {
+          void alertInfo(
+            'Sin resultados',
+            `No hay espectros IR para “${res.query || q}”. Prueba con “Amida”, “amide” o “benzamide”.`,
+          )
+        }
       })
       .catch((err: Error) => {
-        if (alive) setError(err.message)
+        if (!alive) return
+        setError(err.message)
+        void alertError('Error de búsqueda', err.message)
       })
       .finally(() => {
         if (alive) setLoading(false)
@@ -91,7 +103,13 @@ export function ResultsPage() {
   function onSearchSubmit(e: FormEvent) {
     e.preventDefault()
     const value = draft.trim()
-    if (!value) return
+    if (!value) {
+      void alertWarning(
+        'Campo vacío',
+        'Ingresa un compuesto químico para buscar.',
+      )
+      return
+    }
     navigate(`/resultados?q=${encodeURIComponent(value)}`)
   }
 
@@ -124,36 +142,54 @@ export function ResultsPage() {
             </div>
 
             <form onSubmit={onSearchSubmit} className="w-full shrink-0 lg:max-w-md">
-              <div className="flex items-center gap-2 rounded-2xl border border-[var(--line)] bg-[var(--bg-elevated)] px-3 py-2 shadow-[var(--shadow)] backdrop-blur-xl sm:px-4 sm:py-2.5">
+              <div className="flex items-center gap-2 rounded-2xl border border-[var(--line)] bg-[var(--bg-elevated)] px-2.5 py-1.5 backdrop-blur-xl sm:px-3 sm:py-2">
                 <input
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   placeholder="Ingresa un compuesto químico"
-                  className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-[var(--ink-tertiary)] sm:text-[15px]"
+                  className="min-w-0 flex-1 bg-transparent text-[14px] shadow-none outline-none ring-0 placeholder:text-[var(--ink-tertiary)] sm:text-[15px]"
                   aria-label="Ingresa un compuesto químico"
                 />
+                {draft ? (
+                  <button
+                    type="button"
+                    onClick={() => setDraft('')}
+                    className="inline-flex size-8 shrink-0 items-center justify-center rounded-full text-[var(--ink-secondary)] transition hover:bg-black/5 hover:text-[var(--ink)]"
+                    aria-label="Limpiar búsqueda"
+                    title="Limpiar"
+                  >
+                    <FiX size={16} aria-hidden />
+                  </button>
+                ) : null}
                 <button
                   type="submit"
-                  className="shrink-0 rounded-xl bg-[var(--accent)] px-3 py-1.5 text-[13px] font-medium text-white transition hover:brightness-110"
+                  className="inline-flex size-8 shrink-0 items-center justify-center rounded-full text-[var(--ink-tertiary)] transition hover:bg-black/5 hover:text-[var(--ink-secondary)]"
+                  aria-label="Buscar"
+                  title="Buscar"
                 >
-                  Buscar
+                  <FiSearch size={16} aria-hidden />
                 </button>
               </div>
             </form>
           </div>
         </header>
 
-        {error ? (
-          <p className="mb-3 shrink-0 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-[14px] text-red-700 sm:text-[15px]">
-            {error}
-          </p>
-        ) : null}
-
         <section className="flex min-h-0 flex-1 flex-col">
           {loading ? <SearchLoading query={q} /> : null}
 
+          {!loading && error ? (
+            <div className="flex flex-1 items-center justify-center rounded-2xl border border-[var(--line)] bg-[var(--bg-elevated)] px-6 py-10 text-center backdrop-blur-xl">
+              <div>
+                <p className="text-[17px] font-medium text-[var(--ink)]">No se pudo buscar</p>
+                <p className="mt-2 text-[14px] text-[var(--ink-secondary)] sm:text-[15px]">
+                  Intenta de nuevo en unos segundos.
+                </p>
+              </div>
+            </div>
+          ) : null}
+
           {!loading && !error && sorted.length === 0 ? (
-            <div className="flex flex-1 items-center justify-center rounded-2xl border border-[var(--line)] bg-[var(--bg-elevated)] px-6 py-10 text-center shadow-[var(--shadow)] backdrop-blur-xl">
+            <div className="flex flex-1 items-center justify-center rounded-2xl border border-[var(--line)] bg-[var(--bg-elevated)] px-6 py-10 text-center backdrop-blur-xl">
               <div>
                 <p className="text-[17px] font-medium text-[var(--ink)]">Sin resultados</p>
                 <p className="mt-2 text-[14px] text-[var(--ink-secondary)] sm:text-[15px]">

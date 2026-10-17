@@ -1,5 +1,3 @@
-import * as cheerio from 'cheerio'
-
 const BASE = 'https://sdbs.db.aist.go.jp'
 const UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -37,10 +35,25 @@ export type SdbsSearchResult = {
 type CookieJar = Map<string, string>
 
 function storeCookies(jar: CookieJar, res: Response) {
-  for (const line of res.headers.getSetCookie?.() ?? []) {
+  const raw =
+    typeof res.headers.getSetCookie === 'function'
+      ? res.headers.getSetCookie()
+      : []
+  for (const line of raw) {
     const part = line.split(';')[0]
     const eq = part.indexOf('=')
     if (eq > 0) jar.set(part.slice(0, eq), part.slice(eq + 1))
+  }
+
+  // Fallback si getSetCookie no existe
+  if (raw.length === 0) {
+    const single = res.headers.get('set-cookie')
+    if (!single) return
+    for (const line of single.split(/,(?=[^;]+?=)/)) {
+      const part = line.split(';')[0].trim()
+      const eq = part.indexOf('=')
+      if (eq > 0) jar.set(part.slice(0, eq), part.slice(eq + 1))
+    }
   }
 }
 
@@ -62,7 +75,10 @@ function decodeEntities(value: string) {
     .replace(/&gt;/g, '>')
 }
 
-async function sdbsGet(jar: CookieJar, path: string): Promise<{ url: string; html: string }> {
+async function sdbsGet(
+  jar: CookieJar,
+  path: string,
+): Promise<{ url: string; html: string }> {
   const url = absoluteUrl(path)
   const res = await fetch(url, {
     headers: { 'User-Agent': UA, Cookie: cookieHeader(jar) },
@@ -72,7 +88,7 @@ async function sdbsGet(jar: CookieJar, path: string): Promise<{ url: string; htm
 
   if ([301, 302, 303, 307, 308].includes(res.status)) {
     const loc = res.headers.get('location')
-    if (!loc) throw new Error('Redirect SDBS sin Location')
+    if (!loc) throw new Error('Redirect sin Location')
     return sdbsGet(jar, loc)
   }
 
@@ -99,8 +115,7 @@ async function sdbsPost(
 
   if ([301, 302, 303, 307, 308].includes(res.status)) {
     const loc = res.headers.get('location')
-    if (!loc) throw new Error('Redirect SDBS sin Location')
-    // Tras POST, ASP.NET suele continuar con GET.
+    if (!loc) throw new Error('Redirect sin Location')
     return sdbsGet(jar, loc)
   }
 
@@ -163,10 +178,7 @@ function syncHeaderFields(params: URLSearchParams, query: string) {
     'p',
     'si',
   ] as const) {
-    params.set(
-      `ctl00$CtlMasterHeader$${key}_from`,
-      body(`${key}_from`),
-    )
+    params.set(`ctl00$CtlMasterHeader$${key}_from`, body(`${key}_from`))
     params.set(`ctl00$CtlMasterHeader$${key}_to`, body(`${key}_to`))
   }
 
@@ -206,61 +218,66 @@ function syncHeaderFields(params: URLSearchParams, query: string) {
     params.get('ctl00$BodyContentPlaceHolder$INP_order_desc') ?? '0',
   )
   params.set('ctl00$CtlMasterHeader$result_type', 'false')
-  // Solo compuestos con espectro IR (equivale a marcar IRCheck en SDBS).
   params.set('ctl00$BodyContentPlaceHolder$IRCheck', 'on')
   params.set('ctl00$CtlMasterHeader$spectrum', '2,')
   params.set('ctl00$CtlMasterHeader$cur_page', '1')
   params.set('ctl00$BodyContentPlaceHolder$SearchButton', 'Search')
 }
 
+function stripTags(html: string) {
+  return html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function parseHits(html: string): Omit<SdbsSearchResult, 'query' | 'source'> {
-  const $ = cheerio.load(html)
-  const text = $('body').text().replace(/\s+/g, ' ')
-  const hitsMatch = text.match(/(\d+)\s*-\s*(\d+)\s*out of\s*(\d+)\s*hits/i)
+  const hitsMatch = html.match(/(\d+)\s*-\s*(\d+)\s*out of\s*(\d+)\s*hits/i)
   const from = hitsMatch ? Number(hitsMatch[1]) : 0
   const to = hitsMatch ? Number(hitsMatch[2]) : 0
   const total = hitsMatch ? Number(hitsMatch[3]) : 0
 
   const items: SdbsHit[] = []
-  $('tr').each((_, tr) => {
-    const tds = $(tr).find('td')
-    if (tds.length < 10) return
+  for (const row of html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
+    const rowHtml = row[1]
+    const tds = [...rowHtml.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map(
+      (m) => m[1],
+    )
+    if (tds.length < 10) continue
 
-    const cells = tds
-      .map((__, td) => $(td).text().replace(/\s+/g, ' ').trim())
-      .get()
-    if (!/^\d+$/.test(cells[0])) return
+    const cells = tds.map((td) => stripTags(td))
+    if (!/^\d+$/.test(cells[0])) continue
 
     const sdbs_no = cells[0]
     const mw = Number.parseFloat(cells[2])
-    const irHtml = tds.eq(6).html() ?? ''
+    const irHtml = tds[6] ?? ''
     const irText = cells[6]?.toUpperCase() === 'Y'
     const fnameMatch = irHtml.match(/fname=([A-Za-z0-9_-]+)/i)
     const ir_fname = fnameMatch?.[1] ?? null
+
+    if (!irText) continue
 
     items.push({
       sdbs_no,
       formula: cells[1],
       peso_molecular: Number.isFinite(mw) ? mw : null,
-      ir: irText,
+      ir: true,
       ir_fname,
       ir_image_url: ir_fname ? irImageUrl(ir_fname) : null,
       nombre: cells[9],
       detail_url: `${BASE}/sdbs/cgi-bin/direct_frame_top.cgi?sdbsno=${sdbs_no}`,
     })
-  })
+  }
 
-  // Seguridad: nunca devolver filas sin IR (N).
-  const onlyIr = items.filter((item) => item.ir)
   return {
-    from: onlyIr.length ? from : 0,
-    to: onlyIr.length ? Math.min(to, from + onlyIr.length - 1) : 0,
-    total: total || onlyIr.length,
-    items: onlyIr,
+    from: items.length ? from : 0,
+    to: items.length ? Math.min(to, from + items.length - 1) : 0,
+    total: total || items.length,
+    items,
   }
 }
 
-/** Traduce tipos locales (es) a keywords SDBS (en). */
 export function toSdbsQuery(input: string): string {
   const q = input.trim()
   const map: Record<string, string> = {
@@ -299,7 +316,6 @@ export async function searchSdbs(
 
   const jar: CookieJar = new Map()
 
-  // 1) Disclaimer
   const disclaimer = await sdbsGet(jar, '/SearchInformation.aspx')
   const agree = hiddenFields(disclaimer.html)
   agree.set(
@@ -309,10 +325,9 @@ export async function searchSdbs(
   const searchPage = await sdbsPost(jar, '/Disclaimer.aspx', agree)
 
   if (!searchPage.html.includes('INP_companame')) {
-    throw new Error('No se pudo abrir el formulario de búsqueda SDBS.')
+    throw new Error('No se pudo abrir el formulario de búsqueda.')
   }
 
-  // 2) Search
   const form = hiddenFields(searchPage.html)
   syncHeaderFields(form, query)
   const result = await sdbsPost(jar, '/SearchInformation.aspx', form)
@@ -321,13 +336,13 @@ export async function searchSdbs(
     result.html.includes('Please Input the Search Word') ||
     result.html.includes('NoKeywordError')
   ) {
-    throw new Error('SDBS rechazó la búsqueda (falta keyword).')
+    throw new Error('La búsqueda fue rechazada. Intenta otro término.')
   }
 
   const parsed = parseHits(result.html)
   return {
     query,
     ...parsed,
-    source: 'https://sdbs.db.aist.go.jp/SearchInformation.aspx',
+    source: BASE,
   }
 }

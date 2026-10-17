@@ -1,5 +1,5 @@
 import type { Plugin } from 'vite'
-import { searchSdbs } from './sdbsClient.ts'
+import { searchSdbs } from '../lib/sdbsClient.ts'
 
 export function sdbsPlugin(): Plugin {
   return {

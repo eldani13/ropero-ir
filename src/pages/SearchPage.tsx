@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react'
+import { FiSearch, FiX } from 'react-icons/fi'
 import { useNavigate } from 'react-router-dom'
 import { SiteFooter } from '../components/SiteFooter'
+import { alertWarning } from '../lib/alerts'
 
 export function SearchPage() {
   const navigate = useNavigate()
@@ -8,7 +10,13 @@ export function SearchPage() {
 
   function goSearch(term: string) {
     const value = term.trim()
-    if (!value) return
+    if (!value) {
+      void alertWarning(
+        'Campo vacío',
+        'Ingresa un compuesto químico para buscar.',
+      )
+      return
+    }
     navigate(`/resultados?q=${encodeURIComponent(value)}`)
   }
 
@@ -33,8 +41,7 @@ export function SearchPage() {
           <label className="sr-only" htmlFor="search-compuesto">
             Ingresa un compuesto químico
           </label>
-          <div className="flex items-center gap-2 rounded-[var(--radius-pill)] border border-[var(--line)] bg-[var(--bg-elevated)] px-4 py-3 shadow-[var(--shadow)] backdrop-blur-xl transition focus-within:border-[rgba(0,113,227,0.35)] focus-within:shadow-[0_10px_40px_rgba(0,113,227,0.12)] sm:gap-3 sm:px-5 sm:py-3.5">
-            <SearchIcon />
+          <div className="flex items-center gap-2 rounded-[var(--radius-pill)] border border-[var(--line)] bg-[var(--bg-elevated)] px-3 py-2.5 backdrop-blur-xl transition focus-within:border-[rgba(0,113,227,0.35)] sm:gap-3 sm:px-4 sm:py-3">
             <input
               id="search-compuesto"
               value={query}
@@ -42,44 +49,32 @@ export function SearchPage() {
               placeholder="Ingresa un compuesto químico"
               autoComplete="off"
               autoFocus
-              className="min-w-0 flex-1 bg-transparent text-[15px] text-[var(--ink)] outline-none placeholder:text-[var(--ink-tertiary)] sm:text-[17px]"
+              className="min-w-0 flex-1 bg-transparent text-[15px] text-[var(--ink)] shadow-none outline-none ring-0 placeholder:text-[var(--ink-tertiary)] sm:text-[17px]"
             />
             {query ? (
               <button
                 type="button"
                 onClick={() => setQuery('')}
-                className="shrink-0 rounded-full px-2 py-1 text-[12px] text-[var(--ink-secondary)] hover:bg-black/5 sm:text-[13px]"
+                className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-[var(--ink-secondary)] transition hover:bg-black/5 hover:text-[var(--ink)]"
                 aria-label="Limpiar búsqueda"
+                title="Limpiar"
               >
-                Limpiar
+                <FiX size={18} aria-hidden />
               </button>
             ) : null}
+            <button
+              type="submit"
+              className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-[var(--ink-tertiary)] transition hover:bg-black/5 hover:text-[var(--ink-secondary)]"
+              aria-label="Buscar"
+              title="Buscar"
+            >
+              <FiSearch size={18} aria-hidden />
+            </button>
           </div>
         </form>
       </main>
 
       <SiteFooter />
     </div>
-  )
-}
-
-function SearchIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      className="shrink-0 text-[var(--ink-tertiary)]"
-    >
-      <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.8" />
-      <path
-        d="M20 20L16.5 16.5"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-    </svg>
   )
 }

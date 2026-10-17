@@ -46,7 +46,17 @@ export async function searchSdbs(
   }
 
   const res = await fetch(`/api/sdbs/search?q=${encodeURIComponent(trimmed)}`)
-  const body = await res.json()
+  const text = await res.text()
+  let body: { error?: string } & Partial<SdbsSearchResponse>
+  try {
+    body = JSON.parse(text) as typeof body
+  } catch {
+    throw new Error(
+      res.ok
+        ? 'Respuesta inválida del servidor'
+        : `Error del servidor (${res.status}). Intenta de nuevo.`,
+    )
+  }
   if (!res.ok) {
     throw new Error(body.error ?? `Error de búsqueda (${res.status})`)
   }
