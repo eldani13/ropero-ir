@@ -1,0 +1,105 @@
+@import 'tailwindcss';
+
+:root {
+  --bg: #f5f5f7;
+  --bg-elevated: rgba(255, 255, 255, 0.72);
+  --ink: #1d1d1f;
+  --ink-secondary: #6e6e73;
+  --ink-tertiary: #86868b;
+  --line: rgba(0, 0, 0, 0.08);
+  --accent: #0071e3;
+  --accent-soft: rgba(0, 113, 227, 0.12);
+  --success: #1d8348;
+  --danger: #bf4800;
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  --radius-pill: 980px;
+  --font: 'Exo 2', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Orbitron', 'Exo 2', system-ui, sans-serif;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  min-height: 100%;
+  min-height: 100dvh;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--font);
+  color: var(--ink);
+  background:
+    radial-gradient(1200px 600px at 50% -10%, #ffffff 0%, transparent 55%),
+    radial-gradient(800px 400px at 90% 20%, rgba(0, 113, 227, 0.06), transparent 50%),
+    var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#root {
+  overflow: hidden;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+@keyframes ropero-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+@keyframes ropero-blade {
+  0%,
+  100% {
+    opacity: 0.18;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.ropero-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.05) 0%,
+    rgba(0, 0, 0, 0.09) 40%,
+    rgba(0, 0, 0, 0.05) 80%
+  );
+  background-size: 200% 100%;
+  animation: ropero-shimmer 1.35s ease-in-out infinite;
+}
+
+.ropero-spinner-blade {
+  animation: ropero-blade 0.8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ropero-shimmer,
+  .ropero-spinner-blade {
+    animation: none;
+  }
+
+  .ropero-shimmer {
+    background: rgba(0, 0, 0, 0.06);
+  }
+}
