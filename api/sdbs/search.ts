@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { searchSdbs } from '../../lib/sdbsClient'
+import { searchSdbs } from '../../lib/sdbsClient.ts'
 
 // Hobby plan: máximo 10s
 export const config = {
